@@ -168,5 +168,5 @@ class CtcCriterion:
 		self.cost = tf.reduce_mean(self.loss)
 	def decodeCtc(self):
 		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.input, self.nSamples)
-		self.learningRate = tf.reduce_mean(tf.edit_distance(tf.cast(self.decoded[0]. tf.int32), self.target))
+		self.learningRate = tf.reduce_mean(tf.edit_distance(tf.cast(self.decoded[0], tf.int32), self.target))
 
