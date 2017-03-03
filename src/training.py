@@ -17,7 +17,7 @@ class Conf:
 
 if __name__ == '__main__':
 	gConfig = Conf()
-	sess = tf.Session()
+	sess = tf.InteractiveSession()
 
 	weights = None
 	if os.path.isfile(gConfig.modelParFile):
@@ -25,14 +25,14 @@ if __name__ == '__main__':
 	imgs = tf.placeholder(tf.float32, [None, 32, 100, 1])
 	labels = tf.sparse_placeholder(tf.int32)
 	batches = tf.placeholder(tf.int32, [None])
-	isTraining = tf.placeholder(tf.bool)
+	isT = tf.placeholder(tf.bool)
 
-	crnn = CRNN(imgs, gConfig, isTraining, weights, sess)
+	crnn = CRNN(imgs, gConfig, isT, weights, sess)
 	ctc = CtcCriterion(crnn.prob, labels, batches)
 	optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost)
-	data = DatasetLmdb(self.dataSet)
+	data = DatasetLmdb(gConfig.dataSet)
 
-	init = tf.initialize_all_variables()
+	init = tf.global_variables_initializer()
 	sess.run(init)
 	trainAccuracy = 0
 	for i in range(gConfig.maxIteration):
@@ -47,5 +47,5 @@ if __name__ == '__main__':
 		optimizer.run(feed_dict={crnn.imgs:batchSet, 
 					crnn.isTraining:True,
 					ctc.target:labelSet, 
-					ctc.nSamples:gConfig.testBatchSize})
+					ctc.nSamples:gConfig.trainBatchSize})
 	crnn.saveWeights(self.modelParFile)

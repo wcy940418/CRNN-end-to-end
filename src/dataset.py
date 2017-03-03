@@ -23,9 +23,10 @@ class DatasetLmdb:
 	def str2intLable(self, strs, maxLength):
 		assert type(strs) is list
 		nums = len(strs)
-		labels = np.ndarray(shape=(nums, maxLength), dtype=int).fill(0)
+		labels = []
 		for i in range(nums):
-			labels[i] = [self.ascii2Label(ord(c)) for c in strs[i]]
+			labels.append([self.ascii2Label(ord(c)) for c in strs[i]])
+		labels = np.asarray(labels)
 		return labels
 
 	def getNumSamples(self):
@@ -37,22 +38,24 @@ class DatasetLmdb:
 		randomIndex = random.sample(range(1, self.nSamples), batchSize)
 		imageList = []
 		labelList = []
+		images = []
 		with self.env.begin() as txn:
 			for i in range(batchSize):
 				idx = randomIndex[i]
-				imageKey = txn.get('image-%09d' % idx)
-				labelKey = txn.get('label-%09d' % idx)
+				imageKey = 'image-%09d' % idx
+				labelKey = 'label-%09d' % idx
 				imageBin = str(txn.get(imageKey))
-				labelBin = txn.get(labelKey)
+				labelBin = str(txn.get(labelKey))
 				imageList.append(imageBin)
 				labelList.append(labelBin)
-		images = np.ndarray(shape=(batchSize, imgH, imgW, 1), dtype=int)
+		# images = np.ndarray(shape=(batchSize, imgH, imgW, 1), dtype=int)
 		for i in range(batchSize):
 			imgBin = imageList[i]
 			decompressedImg = tf.image.decode_jpeg(imgBin, channels=1)
-			resizedImg = tf.image.resize_images(decompressedImg, [32, 100])
-			images[i] = resizedImg
-		labels = self.str2intLable(labelList)
+			images.append(tf.image.resize_images(decompressedImg, [32, 100]))
+		images = tf.stack(images, 0)
+		images = images.eval()
+		labels = self.str2intLable(labelList, 24)
 		return (images, labels)
 
 
