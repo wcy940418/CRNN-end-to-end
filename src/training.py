@@ -14,6 +14,7 @@ class Conf:
 		self.testInteval = 100
 		self.modelParFile = './model/crnn.model'
 		self.dataSet = '../data'
+		self.maxLength = 24
 
 if __name__ == '__main__':
 	gConfig = Conf()
@@ -21,13 +22,16 @@ if __name__ == '__main__':
 
 	weights = None
 	if os.path.isfile(gConfig.modelParFile):
-		weights = self.modelParFile
-	imgs = tf.placeholder(tf.float32, [None, 32, 100, 1])
+		weights = gConfig.modelParFile
+	imgs = tf.placeholder(tf.float32, [None, 32, 100])
 	labels = tf.sparse_placeholder(tf.int32)
 	batches = tf.placeholder(tf.int32, [None])
-	isT = tf.placeholder(tf.bool)
+	isTraining = tf.placeholder(tf.bool)
 
-	crnn = CRNN(imgs, gConfig, isT, weights, sess)
+	trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
+	testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
+
+	crnn = CRNN(imgs, gConfig, isTraining, weights, sess)
 	ctc = CtcCriterion(crnn.prob, labels, batches)
 	optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost)
 	data = DatasetLmdb(gConfig.dataSet)
@@ -36,16 +40,22 @@ if __name__ == '__main__':
 	sess.run(init)
 	trainAccuracy = 0
 	for i in range(gConfig.maxIteration):
-		if i % gConfig.testInteval == 0:
+		if i != 0 and i % gConfig.testInteval == 0:
 			batchSet, labelSet = data.nextBatch(gConfig.testBatchSize)
-			trainAccuracy = ctc.learningRate.eval(feed_dict={crnn.imgs:batchSet, 
+			# print(batchSet.shape, labelSet.shape)
+			trainAccuracy = ctc.learningRate.eval(feed_dict={
+									crnn.inputImgs:batchSet, 
 									crnn.isTraining:False,
 									ctc.target:labelSet, 
-									ctc.nSamples:gConfig.testBatchSize})
+									ctc.nSamples:testSeqLength
+									})
 			print("step %d, training accuarcy %g" % (i, trainAccuracy))
 		batchSet, labelSet = data.nextBatch(gConfig.trainBatchSize)
-		optimizer.run(feed_dict={crnn.imgs:batchSet, 
+		cost, _ = sess.run([ctc.cost, optimizer],feed_dict={
+					crnn.inputImgs:batchSet, 
 					crnn.isTraining:True,
 					ctc.target:labelSet, 
-					ctc.nSamples:gConfig.trainBatchSize})
+					ctc.nSamples:trainSeqLength
+					})
+		print cost
 	crnn.saveWeights(self.modelParFile)

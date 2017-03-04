@@ -37,13 +37,14 @@ class CRNN:
 		self.isTraining = isTraining
 		self.convLayers()
 		self.lstmLayers()
-		self.prob = self.softmax
+		self.prob = self.biLstm2
 		if self.sess is not None and weights is not None:
 			loadWeights(weights)
 	def convLayers(self):
 		#preprocess
 		with tf.name_scope('preprocess') as scope:
 			images = self.inputImgs
+			images = tf.reshape(images, [-1, 32, 100, 1])
 			images = np.add(images, -128.0)
 			images = np.multiply(images, 1.0/128.0)
 			self.imgs = images
@@ -99,6 +100,7 @@ class CRNN:
 			self.conv4_2 = tf.nn.relu(out, name=scope)
 		#maxPool4
 		self.pool4 = maxPool2x1(self.conv4_2, 'pool4')
+		print(self.pool4.shape)	
 		#conv5 w/batch_norm(This part is same as source code, not paper)
 		with tf.name_scope('conv5') as scope:
 			kernel = weightVariable([2, 2, 512, 512])
@@ -106,14 +108,17 @@ class CRNN:
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
 			batch_norm_out = tf.contrib.layers.batch_norm(conv_out, center=False, is_training=self.isTraining)
-			self.conv5= tf.nn.relu(batch_norm_out, name=scope)		
+			self.conv5= tf.nn.relu(batch_norm_out, name=scope)	
+		print(self.conv5.shape)	
 		#transpose
 		self.transposed = tf.transpose(self.conv5, perm=[2, 0, 3, 1], name='transposed')
 		#reshape
 		self.view = tf.reshape(self.transposed, [24, -1, 512], name='view')
+		print(self.view.shape)	
 		#split to get a list of 'n_steps' tensors of shape [n_batches, n_inputs]
-		self.splitedtable = tf.split(self.transposed, 24, 0, name='splitedtable')
+		self.splitedtable = tf.split(self.view, 24, 0, name='splitedtable')
 		self.splitedtable = [tf.reshape(x, [-1, 512]) for x in self.splitedtable]
+		print(self.splitedtable[0].shape)	
 	def lstmLayers(self):
 		#biLSTM1
 		with tf.name_scope('biLSTM1') as scope:
@@ -135,8 +140,6 @@ class CRNN:
 			biases = biasVariable([37])
 			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
 			self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
-		#softmax
-		self.softmax = tf.nn.softmax(self.biLstm2, -1)
 	def loadWeights(self, weightFile):
 		saver = tf.train.Saver()
 		saver.restore(self.sess, weightFile)
