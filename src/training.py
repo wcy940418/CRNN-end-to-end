@@ -12,7 +12,7 @@ class Conf:
 		self.maxIteration = 1000
 		self.displayInterval = 200
 		self.testInteval = 100
-		self.modelParFile = './model/crnn.model'
+		self.modelParFile = 'crnn.model'
 		self.dataSet = '../data'
 		self.maxLength = 24
 
@@ -58,4 +58,4 @@ if __name__ == '__main__':
 					ctc.nSamples:trainSeqLength
 					})
 		print("step: %s, cost: %s" % (i, cost))
-	crnn.saveWeights(self.modelParFile)
+	crnn.saveWeights(gConfig.modelParFile)
