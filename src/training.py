@@ -57,5 +57,5 @@ if __name__ == '__main__':
 					ctc.target:labelSet, 
 					ctc.nSamples:trainSeqLength
 					})
-		print cost
+		print("step: %s, cost: %s" % (i, cost))
 	crnn.saveWeights(self.modelParFile)
