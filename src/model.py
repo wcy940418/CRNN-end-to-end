@@ -39,7 +39,7 @@ class CRNN:
 		self.lstmLayers()
 		self.prob = self.biLstm2
 		if self.sess is not None and weights is not None:
-			loadWeights(weights)
+			self.loadWeights(weights)
 	def convLayers(self):
 		#preprocess
 		with tf.name_scope('preprocess') as scope:
