@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 import numpy as np
+import os
 
 def weightVariable(shape):
 	initial = tf.truncated_normal(shape, stddev=0.1, name='weights')
@@ -20,9 +21,10 @@ def maxPool2x2(x, pool_name=None):
 def maxPool2x1(x, pool_name=None):
 	return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 1, 1], padding='SAME', name=pool_name)
 
-def biLSTM(x, nInputs, nHidden, sco="bidirectional_rnn"):
+def biLSTM(x, nInputs, nHidden, keep_prob, sco="bidirectional_rnn"):
 	lstmFwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
 	lstmBwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
+	lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	try:
 		outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
 	except Exception:
@@ -30,16 +32,15 @@ def biLSTM(x, nInputs, nHidden, sco="bidirectional_rnn"):
 	return outputs
 
 class CRNN:
-	def __init__(self, inputImgs, conf, isTraining, weights=None, session=None):
+	def __init__(self, inputImgs, conf, isTraining, keepProb, session=None):
 		self.inputImgs = inputImgs
 		self.sess = session
 		self.config = conf
 		self.isTraining = isTraining
+		self.keepProb = keepProb
 		self.convLayers()
 		self.lstmLayers()
 		self.prob = self.biLstm2
-		if self.sess is not None and weights is not None:
-			self.loadWeights(weights)
 	def convLayers(self):
 		#preprocess
 		with tf.name_scope('preprocess') as scope:
@@ -83,6 +84,7 @@ class CRNN:
 			self.conv3_2 = tf.nn.relu(out, name=scope)
 		#maxPool3
 		self.pool3 = maxPool2x1(self.conv3_2, 'pool3')
+		print(self.pool3.shape)	
 		#conv4_1 w/batch_norm
 		with tf.name_scope('conv4_1') as scope:
 			kernel = weightVariable([3, 3, 256, 512])
@@ -122,7 +124,7 @@ class CRNN:
 	def lstmLayers(self):
 		#biLSTM1
 		with tf.name_scope('biLSTM1') as scope:
-			biLstm = biLSTM(self.splitedtable, 512, 256, scope)
+			biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb, scope)
 			joinedtable = tf.stack(biLstm, 0, name='joinedtable')
 			joinedtable = tf.reshape(joinedtable, [-1, 512])
 			weights = weightVariable([256*2, 256])
@@ -133,20 +135,23 @@ class CRNN:
 			self.biLstm1 = [tf.reshape(x, [-1, 256]) for x in self.biLstm1]
 		#biLSTM2
 		with tf.name_scope('biLSTM2') as scope:
-			biLstm = biLSTM(self.biLstm1, 256, 256, scope)
+			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb, scope)
 			joinedtable = tf.stack(biLstm, 0, name='joinedtable')
 			joinedtable = tf.reshape(joinedtable, [-1, 512])
 			weights = weightVariable([256*2, 37])
 			biases = biasVariable([37])
 			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
 			self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
-	def loadWeights(self, weightFile):
+	def loadModel(self, modelFile):
 		saver = tf.train.Saver()
-		saver.restore(self.sess, weightFile)
+		saver.restore(self.sess, modelFile)
 		print("Model restored")
-	def saveWeights(self, weightFile):
+	def saveModel(self, modelFile, step):
 		saver = tf.train.Saver()
-		savePath = saver.save(self.sess, weightFile)
+		save_path = os.path.join(modelFile, "ckpt-%08d" % step)
+		if not os.path.isdir(save_path):
+			os.mkdir(save_path)
+		savePath = saver.save(self.sess, os.path.join(save_path, "ckpt-%08d" % step))
 		print("Model saved at: %s" % savePath)
 		return savePath
 
@@ -162,5 +167,5 @@ class CtcCriterion:
 		self.cost = tf.reduce_mean(self.loss)
 	def decodeCtc(self):
 		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.nSamples)
-		self.learningRate = tf.reduce_mean(tf.edit_distance(tf.cast(self.decoded[0], tf.int32), self.target))
+		self.accuracy = tf.reduce_mean(tf.edit_distance(tf.cast(self.decoded[0], tf.int32), self.target))
 

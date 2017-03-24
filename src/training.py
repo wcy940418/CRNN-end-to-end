@@ -3,98 +3,105 @@ from dataset import DatasetLmdb
 import os
 import tensorflow as tf
 import numpy as np
+import signal
+import utility
+import sys
 
 class Conf:
 	def __init__(self):
 		self.nClasses = 36
 		self.trainBatchSize = 100
 		self.testBatchSize = 200
-		self.maxIteration = 3000
-		self.displayInterval = 200
-		self.testInteval = 100
-		self.modelParFile = './crnn.model'
-		self.dataSet = '../data'
+		self.maxIteration = 2000000
+		self.displayInterval = 2
+		self.evalInterval = 1000
+		self.testInterval = 5000
+		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
+		self.dataSet = os.path.join('..', 'data')
 		self.maxLength = 24
 
-def labelInt2Char(n):
-	if n >= 0 and n <=9:
-		c = chr(n + 48)
-	elif n >= 10 and n<= 35:
-		c = chr(n  + 97 - 10)
-	elif n == 36:
-		c = ''
-	return c
-
-def convertSparseArrayToStrs(p):
-	print(p[0].shape, p[1].shape, p[2].shape)
-	print(p[2][0], p[2][1])
-	results = []
-	labels = []
-	for i in range(p[2][0]):
-		results.append([36 for x in range(p[2][1])])
-	for i in range(p[0].shape[0]):
-		x, y = p[0][i]
-		results[x][y] = p[1][i]
-	for i in range(len(results)):
-		label = ''
-		for j in range(len(results[i])):
-			label += labelInt2Char(results[i][j])
-		labels.append(label)
-	return labels
 
 if __name__ == '__main__':
 	gConfig = Conf()
 	sess = tf.InteractiveSession()
 
-	weights = None
-	if os.path.isfile(gConfig.modelParFile):
-		weights = gConfig.modelParFile
+	ckpt = utility.checkPointLoader(gConfig.modelDir)
 	imgs = tf.placeholder(tf.float32, [None, 32, 100])
 	labels = tf.sparse_placeholder(tf.int32)
 	batches = tf.placeholder(tf.int32, [None])
 	isTraining = tf.placeholder(tf.bool)
+	keepProb = tf.placeholder(tf.float32)
 
 	trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
 	testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
 	evalSeqLength = [gConfig.maxLength for i in range(10)]
 
-	crnn = CRNN(imgs, gConfig, isTraining, weights, sess)
+	crnn = CRNN(imgs, gConfig, isTraining, keepProb, sess)
 	ctc = CtcCriterion(crnn.prob, labels, batches)
-	optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost)
+
+	if ckpt is None:
+		global_step = tf.Variable(0)
+		optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
+		init = tf.global_variables_initializer()
+		sess.run(init)
+		step = 0
+	else:
+		global_step = tf.Variable(0)
+		optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
+		crnn.loadModel(ckpt)
+		step = sess.run([global_step])
+
 	data = DatasetLmdb(gConfig.dataSet)
 
-	init = tf.global_variables_initializer()
-	sess.run(init)
+	
 	trainAccuracy = 0
-	for i in range(gConfig.maxIteration + 1):
-		if i != 0 and i % gConfig.testInteval == 0:
+
+	def signal_handler(signal, frame):
+		print('You pressed Ctrl+C!')
+		crnn.saveModel(gConfig.modelDir, step)
+		print("%d steps trained model has saved" % step)
+		sys.exit(0)
+	signal.signal(signal.SIGINT, signal_handler)
+
+	while True:
+		#train
+		batchSet, labelSet = data.nextBatch(gConfig.trainBatchSize)
+		cost, _, step = sess.run([ctc.cost, optimizer, global_step],feed_dict={
+					crnn.inputImgs:batchSet, 
+					crnn.isTraining:True,
+					crnn.keepProb:0.5,
+					ctc.target:labelSet, 
+					ctc.nSamples:trainSeqLength
+					})
+		if step % gConfig.displayInterval == 0:
+			print("step: %s, cost: %s" % (step, cost))
+		#eval accuarcy
+		if step != 0 and step % gConfig.evalInterval == 0:
 			batchSet, labelSet = data.nextBatch(gConfig.testBatchSize)
 			# print(batchSet.shape, labelSet.shape)
 			trainAccuracy = ctc.learningRate.eval(feed_dict={
 									crnn.inputImgs:batchSet, 
 									crnn.isTraining:False,
+									crnn.keepProb:1.0,
 									ctc.target:labelSet, 
 									ctc.nSamples:testSeqLength
 									})
-			print("step %d, training accuarcy %g" % (i, trainAccuracy))
-		batchSet, labelSet = data.nextBatch(gConfig.trainBatchSize)
-		cost, _ = sess.run([ctc.cost, optimizer],feed_dict={
-					crnn.inputImgs:batchSet, 
-					crnn.isTraining:True,
-					ctc.target:labelSet, 
-					ctc.nSamples:trainSeqLength
-					})
-		print("step: %s, cost: %s" % (i, cost))
-		if i != 0 and i % 500 == 0:
+			print("step %d, training accuarcy %g" % (step, trainAccuracy))
+		#small test
+		if step != 0 and step % gConfig.testInterval == 0:
 			batchSet, labelSet = data.nextBatch(10)
 			p = sess.run(ctc.decoded, feed_dict={
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
+								crnn.keepProb:1.0,
 								ctc.target:labelSet, 
 								ctc.nSamples:evalSeqLength
 								})
-			original = convertSparseArrayToStrs(labelSet)
-			predicted = convertSparseArrayToStrs(p[0])
+			original = utility.convertSparseArrayToStrs(labelSet)
+			predicted = utility.convertSparseArrayToStrs(p[0])
 			for i in range(len(original)):
 				print("original: %s, predicted: %s" % (original[i], predicted[i]))
-	crnn.saveWeights(gConfig.modelParFile)
+		if step >= gConfig.maxIteration:
+			print("%d training has completed" % gConfig.maxIteration)
+			crnn.saveModel(gConfig.modelDir, step)
+			sys.exit(0)
