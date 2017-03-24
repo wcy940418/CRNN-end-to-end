@@ -16,6 +16,7 @@ class Conf:
 		self.displayInterval = 2
 		self.evalInterval = 1000
 		self.testInterval = 5000
+		self.saveInterval = 10000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
 		self.dataSet = os.path.join('..', 'data')
 		self.maxLength = 24
@@ -105,3 +106,6 @@ if __name__ == '__main__':
 			print("%d training has completed" % gConfig.maxIteration)
 			crnn.saveModel(gConfig.modelDir, step)
 			sys.exit(0)
+		if step != 0 and step % gConfig.saveInterval == 0:
+			print("%d training has saved" % step)
+			crnn.saveModel(gConfig.modelDir, step)

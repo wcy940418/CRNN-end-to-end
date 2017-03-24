@@ -32,7 +32,6 @@ def checkPointLoader(modelDir):
 	dirs = [x for x in os.listdir(modelDir) if os.path.isdir(os.path.join(modelDir, x)) and 'ckpt' in x]
 	if len(dirs) == 0:
 		return None
-	print(dirs)
 	dirs = sorted(dirs, key = lambda x:int(x.split('-')[-1]), reverse=True)
 	if len(dirs) == 1:
 		print("There is a check point. Please type in ENTER to load it or \"new\" to start a new training:")
