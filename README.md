@@ -9,6 +9,11 @@ A CRNN python implement based on TensorFlow</br>
 
 Code from Chaoyue Wang</br>
 
+03/24/2017 Update:</br>
+
+1.Added utility.py to handle check points and string conversion.</br>
+2.Added check point system to keep model.</br>
+
 02/25/2017 Update:</br>
 
 1.Tested test.py with 3000 steps trained model. Performance is not good enough. Need more training(2000000 according to author of crnn paper).</br>
