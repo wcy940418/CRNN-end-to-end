@@ -1,5 +1,5 @@
 from model import CRNN, CtcCriterion
-from dataset import DatasetLmdb
+from dataset import DatasetLmdb, SynthLmdb
 import os
 import tensorflow as tf
 import numpy as np
@@ -13,12 +13,13 @@ class Conf:
 		self.trainBatchSize = 100
 		self.testBatchSize = 200
 		self.maxIteration = 2000000
-		self.displayInterval = 2
+		self.displayInterval = 100
 		self.evalInterval = 1000
 		self.testInterval = 5000
-		self.saveInterval = 10000
+		self.saveInterval = 50000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
-		self.dataSet = os.path.join('..', 'data')
+		self.dataSet = os.path.join('..', 'data', 'Synth')
+		self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
 		self.maxLength = 24
 
 
@@ -52,8 +53,8 @@ if __name__ == '__main__':
 		crnn.loadModel(ckpt)
 		step = sess.run([global_step])
 
-	data = DatasetLmdb(gConfig.dataSet)
-
+	# data = DatasetLmdb(gConfig.dataSet)
+	data = DatasetLmdb(gConfig.dataSet, gConfig.auxDataSet)
 	
 	trainAccuracy = 0
 
