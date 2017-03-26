@@ -4,7 +4,7 @@ import numpy as np
 import base64
 
 def checkImageIsValid(imagePath):
-	if imageBin is None:
+	if imagePath is None:
 		return False
 	img = cv2.imread(imagePath, cv2.IMREAD_GRAYSCALE)
 	imgH, imgW = img.shape[0], img.shape[1]
