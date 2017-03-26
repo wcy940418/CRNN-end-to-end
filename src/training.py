@@ -54,7 +54,7 @@ if __name__ == '__main__':
 		step = sess.run([global_step])
 
 	# data = DatasetLmdb(gConfig.dataSet)
-	data = DatasetLmdb(gConfig.dataSet, gConfig.auxDataSet)
+	data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
 	
 	trainAccuracy = 0
 
@@ -81,14 +81,14 @@ if __name__ == '__main__':
 		if step != 0 and step % gConfig.evalInterval == 0:
 			batchSet, labelSet = data.nextBatch(gConfig.testBatchSize)
 			# print(batchSet.shape, labelSet.shape)
-			trainAccuracy = ctc.learningRate.eval(feed_dict={
+			trainAccuracy = ctc.accuracy.eval(feed_dict={
 									crnn.inputImgs:batchSet, 
 									crnn.isTraining:False,
 									crnn.keepProb:1.0,
 									ctc.target:labelSet, 
 									ctc.nSamples:testSeqLength
 									})
-			print("step %d, training accuarcy %g" % (step, trainAccuracy))
+			print("step: %d, training accuracy %g" % (step, trainAccuracy))
 		#small test
 		if step != 0 and step % gConfig.testInterval == 0:
 			batchSet, labelSet = data.nextBatch(10)
