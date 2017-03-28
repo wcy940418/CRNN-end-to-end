@@ -112,6 +112,7 @@ class CRNN:
 			batch_norm_out = tf.contrib.layers.batch_norm(conv_out, center=False, is_training=self.isTraining)
 			self.conv5= tf.nn.relu(batch_norm_out, name=scope)	
 		print(self.conv5.shape)	
+		'''
 		#transpose
 		self.transposed = tf.transpose(self.conv5, perm=[2, 0, 3, 1], name='transposed')
 		#reshape
@@ -121,6 +122,16 @@ class CRNN:
 		self.splitedtable = tf.split(self.view, 24, 0, name='splitedtable')
 		self.splitedtable = [tf.reshape(x, [-1, 512]) for x in self.splitedtable]
 		print(self.splitedtable[0].shape)	
+		'''
+		#reshape
+		self.view1 = tf.reshape(self.conv5, [-1, 24, 512], name='view1')
+		#transpose
+		self.transposed = tf.transpose(self.view1, perm=[1, 0, 2], name='transposed')
+		#reshape
+		self.view2 = tf.reshape(self.transposed, [-1, 512], name='view2')
+		#split to get a list of 'n_steps' tensors of shape [n_batches, n_inputs]
+		self.splitedtable = tf.split(self.view2, 24, 0, name='splitedtable')
+		print(self.splitedtable[0].shape)
 	def lstmLayers(self):
 		#biLSTM1
 		with tf.name_scope('biLSTM1') as scope:
@@ -130,9 +141,11 @@ class CRNN:
 			weights = weightVariable([256*2, 256])
 			biases = biasVariable([256])
 			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+			print(self.biLstm1.shape)
 			# self.parameters += [weights, biases]
 			self.biLstm1 = tf.split(self.biLstm1, 24, 0, name='splitedtable')
-			self.biLstm1 = [tf.reshape(x, [-1, 256]) for x in self.biLstm1]
+			# self.biLstm1 = [tf.reshape(x, [-1, 256]) for x in self.biLstm1]
+
 		#biLSTM2
 		with tf.name_scope('biLSTM2') as scope:
 			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb, scope)
