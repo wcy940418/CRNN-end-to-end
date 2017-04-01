@@ -11,8 +11,8 @@ def labelInt2Char(n):
 	return c
 
 def convertSparseArrayToStrs(p):
-	print(p[0].shape, p[1].shape, p[2].shape)
-	print(p[2][0], p[2][1])
+	# print(p[0].shape, p[1].shape, p[2].shape)
+	# print(p[2][0], p[2][1])
 	results = []
 	labels = []
 	for i in range(p[2][0]):
@@ -26,6 +26,14 @@ def convertSparseArrayToStrs(p):
 			label += labelInt2Char(results[i][j])
 		labels.append(label)
 	return labels
+
+def eval_accuracy(pred, true):
+	n = len(pred)
+	equal = 0
+	for i in range(n):
+		if pred[i] == true[i]:
+			equal += 1
+	return float(equal) / n
 
 def checkPointLoader(modelDir):
 	#ckpts folders format: 'ckpt-(steps(8digits))'

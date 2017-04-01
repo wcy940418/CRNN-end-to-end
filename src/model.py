@@ -25,6 +25,7 @@ def biLSTM(x, nInputs, nHidden, keep_prob, sco="bidirectional_rnn"):
 	lstmFwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
 	lstmBwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
 	lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+	lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	try:
 		outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
 	except Exception:
@@ -46,8 +47,8 @@ class CRNN:
 		with tf.name_scope('preprocess') as scope:
 			images = self.inputImgs
 			images = tf.reshape(images, [-1, 32, 100, 1])
-			images = np.add(images, -128.0)
-			images = np.multiply(images, 1.0/128.0)
+			# images = np.add(images, -128.0)
+			# images = np.multiply(images, 1.0/128.0)
 			self.imgs = images
 		#conv1
 		with tf.name_scope('conv1') as scope:
@@ -124,7 +125,8 @@ class CRNN:
 		print(self.splitedtable[0].shape)	
 		'''
 		#reshape
-		self.view1 = tf.reshape(self.conv5, [-1, 24, 512], name='view1')
+		self.view1 = tf.squeeze(self.conv5, name='view1')
+		print(self.view1.shape)	
 		#transpose
 		self.transposed = tf.transpose(self.view1, perm=[1, 0, 2], name='transposed')
 		#reshape
@@ -169,10 +171,12 @@ class CRNN:
 		return savePath
 
 class CtcCriterion:
-	def __init__(self, result, target, nSamples):
+	def __init__(self, result, target, nSamples, pred_labels, true_labels):
 		self.result = result
 		self.target = target
 		self.nSamples = nSamples
+		self.pred_labels = pred_labels
+		self.true_labels = true_labels
 		self.createCtcCriterion()
 		self.decodeCtc()
 	def createCtcCriterion(self):
@@ -180,5 +184,5 @@ class CtcCriterion:
 		self.cost = tf.reduce_mean(self.loss)
 	def decodeCtc(self):
 		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.nSamples)
-		self.accuracy = tf.reduce_mean(tf.edit_distance(tf.cast(self.decoded[0], tf.int32), self.target))
+		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.pred_labels, self.true_labels), tf.float32))
 

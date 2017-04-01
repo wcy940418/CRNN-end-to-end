@@ -136,6 +136,13 @@ class SynthLmdb:
 		return (images, labels)
 
 if __name__ == '__main__':
-	db  = SynthLmdb("../data/Synth/test_data", "../data/Synth")
+	# db  = SynthLmdb("../data/Synth/test_data", "../data/Synth")
+	db  = DatasetLmdb("../data/IIIT5K")
 	batches, labels = db.nextBatch(10)
-	print  batches.shape, labels
+	import utility
+	pred = utility.convertSparseArrayToStrs(labels)
+	print  batches.shape, pred
+	for b in batches:
+		print b.shape
+		cv2.imshow("output", b)
+		cv2.waitKey(0)
