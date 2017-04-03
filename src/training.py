@@ -11,11 +11,11 @@ import time
 class Conf:
 	def __init__(self):
 		self.nClasses = 36
-		self.trainBatchSize = 100
+		self.trainBatchSize = 64
 		self.evalBatchSize = 200
 		self.testBatchSize = 10
 		self.maxIteration = 2000000
-		self.displayInterval = 100
+		self.displayInterval = 1
 		self.evalInterval = 1000
 		self.testInterval = 2000
 		self.saveInterval = 50000
@@ -58,8 +58,8 @@ if __name__ == '__main__':
 		crnn.loadModel(ckpt)
 		step = sess.run([global_step])
 
-	data = DatasetLmdb(gConfig.dataSet)
-	# data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
+	# data = DatasetLmdb(gConfig.dataSet)
+	data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
 	
 	trainAccuracy = 0
 
