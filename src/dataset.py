@@ -108,7 +108,7 @@ class SynthLmdb:
 			# print resized.shape
 			images.append(resized)
 		images = np.asarray(images)
-		labels = str2intLable(labelList, 24)
+		labels = str2intLable(labelList)
 		return (images, labels)
 
 if __name__ == '__main__':
