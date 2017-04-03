@@ -117,7 +117,7 @@ if __name__ == '__main__':
 	batches, labels, seqLengths = db.nextBatch(10)
 	import utility
 	pred = utility.convertSparseArrayToStrs(labels)
-	print  batches.shape, pred, seqLengths
+	print  batches.shape, pred, seqLengths, labels[2]
 	# for b in batches:
 	# 	print b.shape
 	# 	cv2.imshow("output", b)
