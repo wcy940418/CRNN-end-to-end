@@ -5,39 +5,42 @@ import random
 import numpy as np
 import cv2
 
+def ascii2Label(self, ascii):
+	if ascii >= 48 and ascii <=57:
+		c = ascii - 48
+	elif ascii >= 65 and ascii <=90:
+		c = ascii - 65 +10
+	elif ascii >=97 and ascii <=122:
+		c = ascii - 97 +10
+	return c
+
+def str2intLable(self, strs):
+	assert type(strs) is list
+	nums = len(strs)
+	maxLength = 0
+	indices = []
+	values = []
+	seqLengths = []
+	for i in range(nums):
+		length = len(strs[i])
+		if length > maxLength:
+			maxLength = length
+		for j in range(length):
+			indices.append([i, j])
+			values.append(ascii2Label(ord(strs[i][j])))
+		seqLengths.append(length)
+	dense_shape = [nums, maxLength]
+	indices = np.asarray(indices, dtype=np.int32)
+	values = np.asarray(values, dtype=np.int32)
+	dense_shape = np.asarray(dense_shape, dtype=np.int32)
+	return (indices, values, dense_shape), seqLengths
+
 
 class DatasetLmdb:
 	def __init__(self, lmdbPath):
 		self.env = lmdb.open(lmdbPath, map_size=1099511627776)
 		with self.env.begin() as txn:
 			self.nSamples = int(txn.get('num-samples'))
-
-	def ascii2Label(self, ascii):
-		if ascii >= 48 and ascii <=57:
-			c = ascii - 48
-		elif ascii >= 65 and ascii <=90:
-			c = ascii - 65 +10
-		elif ascii >=97 and ascii <=122:
-			c = ascii - 97 +10
-		return c
-
-	def str2intLable(self, strs, maxLength):
-		assert type(strs) is list
-		nums = len(strs)
-		indices = []
-		values = []
-		dense_shape = [nums, maxLength]
-		for i in range(nums):
-			for j in range(maxLength):
-				indices.append([i, j])
-				if j < len(strs[i]):
-					values.append(self.ascii2Label(ord(strs[i][j])))
-				else:
-					values.append(36)
-		indices = np.asarray(indices, dtype=np.int32)
-		values = np.asarray(values, dtype=np.int32)
-		dense_shape = np.asarray(dense_shape, dtype=np.int32)
-		return indices, values, dense_shape
 
 	def getNumSamples(self):
 		return self.nSamples
@@ -70,8 +73,8 @@ class DatasetLmdb:
 			# print resized.shape
 			images.append(resized)
 		images = np.asarray(images)
-		labels = self.str2intLable(labelList, 24)
-		return (images, labels)
+		labels, seqLengths = str2intLable(labelList)
+		return images, labels, seqLengths
 
 class SynthLmdb:
 	def __init__(self, lmdbPath,dataPath):
@@ -79,33 +82,6 @@ class SynthLmdb:
 		with self.env.begin() as txn:
 			self.nSamples = int(txn.get('num-samples'))
 		self.dataPath = dataPath
-
-	def ascii2Label(self, ascii):
-		if ascii >= 48 and ascii <=57:
-			c = ascii - 48
-		elif ascii >= 65 and ascii <=90:
-			c = ascii - 65 +10
-		elif ascii >=97 and ascii <=122:
-			c = ascii - 97 +10
-		return c
-
-	def str2intLable(self, strs, maxLength):
-		assert type(strs) is list
-		nums = len(strs)
-		indices = []
-		values = []
-		dense_shape = [nums, maxLength]
-		for i in range(nums):
-			for j in range(maxLength):
-				indices.append([i, j])
-				if j < len(strs[i]):
-					values.append(self.ascii2Label(ord(strs[i][j])))
-				else:
-					values.append(36)
-		indices = np.asarray(indices, dtype=np.int32)
-		values = np.asarray(values, dtype=np.int32)
-		dense_shape = np.asarray(dense_shape, dtype=np.int32)
-		return indices, values, dense_shape
 
 	def getNumSamples(self):
 		return self.nSamples
@@ -132,16 +108,16 @@ class SynthLmdb:
 			# print resized.shape
 			images.append(resized)
 		images = np.asarray(images)
-		labels = self.str2intLable(labelList, 24)
+		labels = str2intLable(labelList, 24)
 		return (images, labels)
 
 if __name__ == '__main__':
 	# db  = SynthLmdb("../data/Synth/test_data", "../data/Synth")
 	db  = DatasetLmdb("../data/IIIT5K")
-	batches, labels = db.nextBatch(10)
+	batches, labels, seqLengths = db.nextBatch(10)
 	import utility
 	pred = utility.convertSparseArrayToStrs(labels)
-	print  batches.shape, pred
+	print  batches.shape, pred, seqLengths
 	for b in batches:
 		print b.shape
 		cv2.imshow("output", b)

@@ -39,9 +39,9 @@ if __name__ == '__main__':
 	pred_labels = tf.placeholder(tf.string, [None])
 	true_labels = tf.placeholder(tf.string, [None])
 
-	trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
-	testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
-	evalSeqLength = [gConfig.maxLength for i in range(gConfig.evalBatchSize)]
+	# trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
+	# testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
+	# evalSeqLength = [gConfig.maxLength for i in range(gConfig.evalBatchSize)]
 
 	crnn = CRNN(imgs, gConfig, isTraining, keepProb, sess)
 	ctc = CtcCriterion(crnn.prob, labels, batches, pred_labels, true_labels)
@@ -73,13 +73,13 @@ if __name__ == '__main__':
 	t = start_time
 	while True:
 		#train
-		batchSet, labelSet = data.nextBatch(gConfig.trainBatchSize)
+		batchSet, labelSet, seqLengths = data.nextBatch(gConfig.trainBatchSize)
 		cost, _, step = sess.run([ctc.cost, optimizer, global_step],feed_dict={
 					crnn.inputImgs:batchSet, 
 					crnn.isTraining:True,
 					crnn.keepProb:0.5,
 					ctc.target:labelSet, 
-					ctc.nSamples:trainSeqLength
+					ctc.nSamples:seqLengths
 					})
 		if step % gConfig.displayInterval == 0:
 			time_elapse = time.time() - t
@@ -88,14 +88,14 @@ if __name__ == '__main__':
 			print("step: %s, cost: %s, step time: %.2fs, total time: %.2fs" % (step, cost, time_elapse, total_time))
 		#eval accuarcy
 		if step != 0 and step % gConfig.evalInterval == 0:
-			batchSet, labelSet = data.nextBatch(gConfig.evalBatchSize)
+			batchSet, labelSet, seqLengths = data.nextBatch(gConfig.evalBatchSize)
 			# print(batchSet.shape, labelSet.shape)
 			p = sess.run(ctc.decoded, feed_dict={
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
 								ctc.target:labelSet, 
-								ctc.nSamples:evalSeqLength
+								ctc.nSamples:seqLengths
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
 			predicted = utility.convertSparseArrayToStrs(p[0])
@@ -107,13 +107,13 @@ if __name__ == '__main__':
 			print("step: %d, training accuracy %f" % (step, trainAccuracy))
 		#small test
 		if step != 0 and step % gConfig.testInterval == 0:
-			batchSet, labelSet = data.nextBatch(gConfig.testBatchSize)
+			batchSet, labelSet, seqLengths = data.nextBatch(gConfig.testBatchSize)
 			p = sess.run(ctc.decoded, feed_dict={
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
 								ctc.target:labelSet, 
-								ctc.nSamples:testSeqLength
+								ctc.nSamples:seqLengths
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
 			predicted = utility.convertSparseArrayToStrs(p[0])
