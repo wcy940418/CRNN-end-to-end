@@ -15,7 +15,7 @@ class Conf:
 		self.evalBatchSize = 200
 		self.testBatchSize = 10
 		self.maxIteration = 2000000
-		self.displayInterval = 1
+		self.displayInterval = 100
 		self.evalInterval = 1000
 		self.testInterval = 2000
 		self.saveInterval = 50000
