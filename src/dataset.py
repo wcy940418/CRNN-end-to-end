@@ -5,7 +5,7 @@ import random
 import numpy as np
 import cv2
 
-def ascii2Label(self, ascii):
+def ascii2Label(ascii):
 	if ascii >= 48 and ascii <=57:
 		c = ascii - 48
 	elif ascii >= 65 and ascii <=90:
@@ -14,7 +14,7 @@ def ascii2Label(self, ascii):
 		c = ascii - 97 +10
 	return c
 
-def str2intLable(self, strs):
+def str2intLable(strs):
 	assert type(strs) is list
 	nums = len(strs)
 	maxLength = 0
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 	import utility
 	pred = utility.convertSparseArrayToStrs(labels)
 	print  batches.shape, pred, seqLengths
-	for b in batches:
-		print b.shape
-		cv2.imshow("output", b)
-		cv2.waitKey(0)
+	# for b in batches:
+	# 	print b.shape
+	# 	cv2.imshow("output", b)
+	# 	cv2.waitKey(0)
