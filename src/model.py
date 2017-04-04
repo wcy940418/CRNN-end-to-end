@@ -22,15 +22,17 @@ def maxPool2x1(x, pool_name=None):
 	return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 1, 1], padding='SAME', name=pool_name)
 
 def biLSTM(x, nInputs, nHidden, keep_prob, sco="bidirectional_rnn"):
-	lstmFwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
-	lstmBwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
-	lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
-	lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
-	try:
-		outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
-	except Exception:
-		outputs = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
-	return outputs
+	lstmFwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0)
+	lstmBwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0)
+	# lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+	# lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+	# try:
+	# 	outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
+	# except Exception:
+	# 	outputs = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
+	# return outputs
+	outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, time_major=True, dtype=tf.float32)
+	return tf.concat(outputs, 2)
 
 class CRNN:
 	def __init__(self, inputImgs, conf, isTraining, keepProb, session=None):
@@ -130,26 +132,27 @@ class CRNN:
 		#transpose
 		self.transposed = tf.transpose(self.view1, perm=[1, 0, 2], name='transposed')
 		#reshape
-		self.view2 = tf.reshape(self.transposed, [-1, 512], name='view2')
+		# self.view2 = tf.reshape(self.transposed, [-1, 512], name='view2')
 		#split to get a list of 'n_steps' tensors of shape [n_batches, n_inputs]
-		self.splitedtable = tf.split(self.view2, 24, 0, name='splitedtable')
-		print(self.splitedtable[0].shape)
+		# self.splitedtable = tf.split(self.view2, 24, 0, name='splitedtable')
+		# print(self.splitedtable[0].shape)
 	def lstmLayers(self):
 		#biLSTM1
 		with tf.name_scope('biLSTM1') as scope:
-			biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb, scope)
-			joinedtable = tf.stack(biLstm, 0)
+			biLstm = biLSTM(self.transposed, 512, 256, self.keepProb, scope)
+			# joinedtable = tf.stack(biLstm, 0)
 			joinedtable = tf.reshape(joinedtable, [-1, 512])
 			weights = weightVariable([256*2, 256])
 			biases = biasVariable([256])
 			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
-			print(self.biLstm1.shape)
-			self.biLstm1 = tf.split(self.biLstm1, 24, 0)
+			# print(self.biLstm1.shape)
+			# self.biLstm1 = tf.split(self.biLstm1, 24, 0)
+			self.biLstm1 = tf.reshape(self.biLstm1, [24, -1, 256])
 
 		#biLSTM2
 		with tf.name_scope('biLSTM2') as scope:
 			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb, scope)
-			joinedtable = tf.stack(biLstm, 0)
+			# joinedtable = tf.stack(biLstm, 0)
 			joinedtable = tf.reshape(joinedtable, [-1, 512])
 			weights = weightVariable([256*2, 37])
 			biases = biasVariable([37])
