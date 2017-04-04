@@ -24,8 +24,8 @@ def maxPool2x1(x, pool_name=None):
 def biLSTM(x, nInputs, nHidden, keep_prob, sco="bidirectional_rnn"):
 	lstmFwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
 	lstmBwCell = tf.contrib.rnn.BasicLSTMCell(nHidden, forget_bias=1.0)
-	# lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
-	# lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+	lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+	lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	try:
 		outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
 	except Exception:
@@ -74,7 +74,7 @@ class CRNN:
 			conv = conv2d(self.pool2, kernel)
 			biases = biasVariable([256])
 			conv_out = tf.nn.bias_add(conv, biases)
-			batch_norm_out = tf.contrib.layers.batch_norm(conv_out, center=False, is_training=self.isTraining)
+			batch_norm_out = tf.layers.batch_norm(conv_out, training=self.isTraining)
 			self.conv3_1 = tf.nn.relu(batch_norm_out)
 		#conv3_2
 		with tf.name_scope('conv3_2') as scope:
@@ -92,7 +92,7 @@ class CRNN:
 			conv = conv2d(self.pool3, kernel)
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
-			batch_norm_out = tf.contrib.layers.batch_norm(conv_out, center=False, is_training=self.isTraining, decay=0.9)
+			batch_norm_out = tf.layers.batch_norm(conv_out, training=self.isTraining)
 			self.conv4_1 = tf.nn.relu(batch_norm_out)
 		#conv4_2 wo/batch_norm(This part is same as source code, not paper)
 		with tf.name_scope('conv4_2') as scope:
@@ -110,7 +110,7 @@ class CRNN:
 			conv = conv2d(self.pool4, kernel, 'VALID')
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
-			batch_norm_out = tf.contrib.layers.batch_norm(conv_out, center=False, is_training=self.isTraining, decay=0.9)
+			batch_norm_out = tf.layers.batch_norm(conv_out, training=self.isTraining)
 			self.conv5= tf.nn.relu(batch_norm_out)	
 		print(self.conv5.shape)	
 		'''

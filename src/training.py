@@ -1,6 +1,7 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from model import CRNN, CtcCriterion
 from dataset import DatasetLmdb, SynthLmdb
-import os
 import tensorflow as tf
 import numpy as np
 import signal
@@ -77,7 +78,7 @@ if __name__ == '__main__':
 		cost, _, step = sess.run([ctc.cost, optimizer, global_step],feed_dict={
 					crnn.inputImgs:batchSet, 
 					crnn.isTraining:True,
-					crnn.keepProb:0.5,
+					crnn.keepProb:0.7,
 					ctc.target:labelSet, 
 					ctc.nSamples:seqLengths
 					})
