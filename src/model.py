@@ -74,7 +74,7 @@ class CRNN:
 			conv = conv2d(self.pool2, kernel)
 			biases = biasVariable([256])
 			conv_out = tf.nn.bias_add(conv, biases)
-			batch_norm_out = tf.layers.batch_norm(conv_out, training=self.isTraining)
+			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
 			self.conv3_1 = tf.nn.relu(batch_norm_out)
 		#conv3_2
 		with tf.name_scope('conv3_2') as scope:
@@ -92,7 +92,7 @@ class CRNN:
 			conv = conv2d(self.pool3, kernel)
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
-			batch_norm_out = tf.layers.batch_norm(conv_out, training=self.isTraining)
+			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
 			self.conv4_1 = tf.nn.relu(batch_norm_out)
 		#conv4_2 wo/batch_norm(This part is same as source code, not paper)
 		with tf.name_scope('conv4_2') as scope:
@@ -110,7 +110,7 @@ class CRNN:
 			conv = conv2d(self.pool4, kernel, 'VALID')
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
-			batch_norm_out = tf.layers.batch_norm(conv_out, training=self.isTraining)
+			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
 			self.conv5= tf.nn.relu(batch_norm_out)	
 		print(self.conv5.shape)	
 		'''
