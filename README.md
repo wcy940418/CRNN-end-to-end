@@ -6,6 +6,7 @@ A CRNN python implement based on TensorFlow</br>
 * TensorFlow r1.0
 * lmdb lib
 * OpenCV2
+* Baidu's WarpCTC
 
 Code from Chaoyue Wang</br>
 

@@ -16,14 +16,14 @@ class Conf:
 		self.evalBatchSize = 200
 		self.testBatchSize = 10
 		self.maxIteration = 2000000
-		self.displayInterval = 100
+		self.displayInterval = 1
 		self.evalInterval = 1000
-		self.testInterval = 2000
+		self.testInterval = 20
 		self.saveInterval = 50000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
-		self.dataSet = os.path.join('..', 'data', 'Synth')
-		self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
-		# self.dataSet = os.path.join('..', 'data', 'IIIT5K')
+		# self.dataSet = os.path.join('..', 'data', 'Synth')
+		# self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
+		self.dataSet = os.path.join('..', 'data', 'IIIT5K')
 		self.maxLength = 24
 
 
@@ -33,34 +33,33 @@ if __name__ == '__main__':
 
 	ckpt = utility.checkPointLoader(gConfig.modelDir)
 	imgs = tf.placeholder(tf.float32, [None, 32, 100])
-	labels = tf.sparse_placeholder(tf.int32)
-	batches = tf.placeholder(tf.int32, [None])
+	decode_labels = tf.sparse_placeholder(tf.int32)
+	labels = tf.placeholder(tf.int32,[None])
+	target_seq_lengths = tf.placeholder(tf.int32, [None])
+	input_seq_lengths = tf.placeholder(tf.int32, [None])
 	isTraining = tf.placeholder(tf.bool)
 	keepProb = tf.placeholder(tf.float32)
 	pred_labels = tf.placeholder(tf.string, [None])
 	true_labels = tf.placeholder(tf.string, [None])
 
-	# trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
-	# testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
-	# evalSeqLength = [gConfig.maxLength for i in range(gConfig.evalBatchSize)]
+	trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
+	testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
+	evalSeqLength = [gConfig.maxLength for i in range(gConfig.evalBatchSize)]
 
 	crnn = CRNN(imgs, gConfig, isTraining, keepProb, sess)
-	ctc = CtcCriterion(crnn.prob, labels, batches, pred_labels, true_labels)
-
+	ctc = CtcCriterion(crnn.prob, input_seq_lengths, labels, target_seq_lengths, pred_labels, true_labels)
+	global_step = tf.Variable(0)
+	optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
 	if ckpt is None:
-		global_step = tf.Variable(0)
-		optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
 		init = tf.global_variables_initializer()
 		sess.run(init)
 		step = 0
 	else:
-		global_step = tf.Variable(0)
-		optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
 		crnn.loadModel(ckpt)
 		step = sess.run([global_step])
 
-	# data = DatasetLmdb(gConfig.dataSet)
-	data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
+	data = DatasetLmdb(gConfig.dataSet)
+	# data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
 	
 	trainAccuracy = 0
 
@@ -78,9 +77,10 @@ if __name__ == '__main__':
 		cost, _, step = sess.run([ctc.cost, optimizer, global_step],feed_dict={
 					crnn.inputImgs:batchSet, 
 					crnn.isTraining:True,
-					crnn.keepProb:0.7,
-					ctc.target:labelSet, 
-					ctc.nSamples:seqLengths
+					crnn.keepProb:1.0,
+					ctc.lossTarget:labelSet[1], 
+					ctc.targetSeqLengths:seqLengths,
+					ctc.inputSeqLengths:trainSeqLength
 					})
 		if step % gConfig.displayInterval == 0:
 			time_elapse = time.time() - t
@@ -91,12 +91,12 @@ if __name__ == '__main__':
 		if step != 0 and step % gConfig.evalInterval == 0:
 			batchSet, labelSet, seqLengths = data.nextBatch(gConfig.evalBatchSize)
 			# print(batchSet.shape, labelSet.shape)
+
 			p = sess.run(ctc.decoded, feed_dict={
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
-								ctc.target:labelSet, 
-								ctc.nSamples:seqLengths
+								ctc.inputSeqLengths:evalSeqLength
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
 			predicted = utility.convertSparseArrayToStrs(p[0])
@@ -113,8 +113,7 @@ if __name__ == '__main__':
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
-								ctc.target:labelSet, 
-								ctc.nSamples:seqLengths
+								ctc.inputSeqLengths:testSeqLength
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
 			predicted = utility.convertSparseArrayToStrs(p[0])

@@ -3,6 +3,7 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 import os
+import warpctc_tensorflow
 
 def weightVariable(shape):
 	initial = tf.truncated_normal(shape, stddev=0.1, name='weights')
@@ -21,18 +22,13 @@ def maxPool2x2(x, pool_name=None):
 def maxPool2x1(x, pool_name=None):
 	return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 1, 1], padding='SAME', name=pool_name)
 
-def biLSTM(x, nInputs, nHidden, keep_prob, sco="bidirectional_rnn"):
-	lstmFwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0)
-	lstmBwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0)
+def biLSTM(x, nInputs, nHidden, keep_prob):
+	lstmFwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
+	lstmBwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
 	# lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	# lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
-	# try:
-	# 	outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
-	# except Exception:
-	# 	outputs = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32, scope=sco)
-	# return outputs
-	outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, time_major=True, dtype=tf.float32)
-	return tf.concat(outputs, 2)
+	outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32)
+	return outputs
 
 class CRNN:
 	def __init__(self, inputImgs, conf, isTraining, keepProb, session=None):
@@ -46,14 +42,14 @@ class CRNN:
 		self.prob = self.biLstm2
 	def convLayers(self):
 		#preprocess
-		with tf.name_scope('preprocess') as scope:
+		with tf.variable_scope('preprocess') as scope:
 			images = self.inputImgs
 			images = tf.reshape(images, [-1, 32, 100, 1])
-			# images = np.add(images, -128.0)
-			# images = np.multiply(images, 1.0/128.0)
+			images = np.add(images, -128.0)
+			images = np.multiply(images, 1.0/128.0)
 			self.imgs = images
 		#conv1
-		with tf.name_scope('conv1') as scope:
+		with tf.variable_scope('conv1') as scope:
 			kernel = weightVariable([3, 3, 1, 64])
 			conv = conv2d(self.imgs, kernel)
 			biases = biasVariable([64])
@@ -62,7 +58,7 @@ class CRNN:
 		#maxPool1
 		self.pool1 = maxPool2x2(self.conv1, 'pool1')
 		#conv2
-		with tf.name_scope('conv2') as scope:
+		with tf.variable_scope('conv2') as scope:
 			kernel = weightVariable([3, 3, 64, 128])
 			conv = conv2d(self.pool1, kernel)
 			biases = biasVariable([128])
@@ -71,7 +67,7 @@ class CRNN:
 		#maxPool2
 		self.pool2 = maxPool2x2(self.conv2, 'pool2')
 		#conv3_1 w/batch_norm(This part is same as source code, not paper)
-		with tf.name_scope('conv3_1') as scope:
+		with tf.variable_scope('conv3_1') as scope:
 			kernel = weightVariable([3, 3, 128, 256])
 			conv = conv2d(self.pool2, kernel)
 			biases = biasVariable([256])
@@ -79,7 +75,7 @@ class CRNN:
 			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
 			self.conv3_1 = tf.nn.relu(batch_norm_out)
 		#conv3_2
-		with tf.name_scope('conv3_2') as scope:
+		with tf.variable_scope('conv3_2') as scope:
 			kernel = weightVariable([3, 3, 256, 256])
 			conv = conv2d(self.conv3_1, kernel)
 			biases = biasVariable([256])
@@ -89,7 +85,7 @@ class CRNN:
 		self.pool3 = maxPool2x1(self.conv3_2, 'pool3')
 		print(self.pool3.shape)	
 		#conv4_1 w/batch_norm
-		with tf.name_scope('conv4_1') as scope:
+		with tf.variable_scope('conv4_1') as scope:
 			kernel = weightVariable([3, 3, 256, 512])
 			conv = conv2d(self.pool3, kernel)
 			biases = biasVariable([512])
@@ -97,7 +93,7 @@ class CRNN:
 			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
 			self.conv4_1 = tf.nn.relu(batch_norm_out)
 		#conv4_2 wo/batch_norm(This part is same as source code, not paper)
-		with tf.name_scope('conv4_2') as scope:
+		with tf.variable_scope('conv4_2') as scope:
 			kernel = weightVariable([3, 3, 512, 512])
 			conv = conv2d(self.conv4_1, kernel)
 			biases = biasVariable([512])
@@ -107,7 +103,7 @@ class CRNN:
 		self.pool4 = maxPool2x1(self.conv4_2, 'pool4')
 		print(self.pool4.shape)	
 		#conv5 w/batch_norm(This part is same as source code, not paper)
-		with tf.name_scope('conv5') as scope:
+		with tf.variable_scope('conv5') as scope:
 			kernel = weightVariable([2, 2, 512, 512])
 			conv = conv2d(self.pool4, kernel, 'VALID')
 			biases = biasVariable([512])
@@ -132,27 +128,26 @@ class CRNN:
 		#transpose
 		self.transposed = tf.transpose(self.view1, perm=[1, 0, 2], name='transposed')
 		#reshape
-		# self.view2 = tf.reshape(self.transposed, [-1, 512], name='view2')
+		self.view2 = tf.reshape(self.transposed, [-1, 512], name='view2')
 		#split to get a list of 'n_steps' tensors of shape [n_batches, n_inputs]
-		# self.splitedtable = tf.split(self.view2, 24, 0, name='splitedtable')
-		# print(self.splitedtable[0].shape)
+		self.splitedtable = tf.split(self.view2, 24, 0, name='splitedtable')
+		print(self.splitedtable[0].shape)
 	def lstmLayers(self):
 		#biLSTM1
-		with tf.name_scope('biLSTM1') as scope:
-			biLstm = biLSTM(self.transposed, 512, 256, self.keepProb, scope)
-			# joinedtable = tf.stack(biLstm, 0)
+		with tf.variable_scope('biLSTM1') as scope:
+			biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb)
+			joinedtable = tf.stack(biLstm, 0)
 			joinedtable = tf.reshape(joinedtable, [-1, 512])
 			weights = weightVariable([256*2, 256])
 			biases = biasVariable([256])
 			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
-			# print(self.biLstm1.shape)
-			# self.biLstm1 = tf.split(self.biLstm1, 24, 0)
-			self.biLstm1 = tf.reshape(self.biLstm1, [24, -1, 256])
+			print(self.biLstm1.shape)
+			self.biLstm1 = tf.split(self.biLstm1, 24, 0)
 
 		#biLSTM2
-		with tf.name_scope('biLSTM2') as scope:
-			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb, scope)
-			# joinedtable = tf.stack(biLstm, 0)
+		with tf.variable_scope('biLSTM2') as scope:
+			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb)
+			joinedtable = tf.stack(biLstm, 0)
 			joinedtable = tf.reshape(joinedtable, [-1, 512])
 			weights = weightVariable([256*2, 37])
 			biases = biasVariable([37])
@@ -172,18 +167,20 @@ class CRNN:
 		return savePath
 
 class CtcCriterion:
-	def __init__(self, result, target, nSamples, pred_labels, true_labels):
+	def __init__(self, result, inputSeqLengths, lossTarget, targetSeqLengths, pred_labels, true_labels):
 		self.result = result
-		self.target = target
-		self.nSamples = nSamples
+		self.inputSeqLengths = inputSeqLengths
+		self.lossTarget = lossTarget
+		self.targetSeqLengths = targetSeqLengths
 		self.pred_labels = pred_labels
 		self.true_labels = true_labels
 		self.createCtcCriterion()
 		self.decodeCtc()
 	def createCtcCriterion(self):
-		self.loss = tf.nn.ctc_loss(self.target, self.result, self.nSamples)
+		# self.loss = tf.nn.ctc_loss(self.target, self.result, self.lossSeqLengths)
+		self.loss = warpctc_tensorflow.ctc(self.result, self.lossTarget, self.targetSeqLengths, self.inputSeqLengths, blank_label=36)
 		self.cost = tf.reduce_mean(self.loss)
 	def decodeCtc(self):
-		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.nSamples)
+		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.inputSeqLengths)
 		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.pred_labels, self.true_labels), tf.float32))
 
