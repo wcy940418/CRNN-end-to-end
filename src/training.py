@@ -16,14 +16,14 @@ class Conf:
 		self.evalBatchSize = 200
 		self.testBatchSize = 10
 		self.maxIteration = 2000000
-		self.displayInterval = 1
+		self.displayInterval = 100
 		self.evalInterval = 1000
-		self.testInterval = 20
+		self.testInterval = 2000
 		self.saveInterval = 50000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
-		# self.dataSet = os.path.join('..', 'data', 'Synth')
-		# self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
-		self.dataSet = os.path.join('..', 'data', 'IIIT5K')
+		self.dataSet = os.path.join('..', 'data', 'Synth')
+		self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
+		# self.dataSet = os.path.join('..', 'data', 'IIIT5K')
 		self.maxLength = 24
 
 
