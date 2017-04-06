@@ -37,6 +37,7 @@ if __name__ == '__main__':
 	labels = tf.placeholder(tf.int32,[None])
 	target_seq_lengths = tf.placeholder(tf.int32, [None])
 	input_seq_lengths = tf.placeholder(tf.int32, [None])
+	rnn_seq_lengths = tf.placeholder(tf.int32, [None])
 	isTraining = tf.placeholder(tf.bool)
 	keepProb = tf.placeholder(tf.float32)
 	pred_labels = tf.placeholder(tf.string, [None])
@@ -46,7 +47,7 @@ if __name__ == '__main__':
 	testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
 	evalSeqLength = [gConfig.maxLength for i in range(gConfig.evalBatchSize)]
 
-	crnn = CRNN(imgs, gConfig, isTraining, keepProb, sess)
+	crnn = CRNN(imgs, gConfig, isTraining, keepProb, rnn_seq_lengths, sess)
 	ctc = CtcCriterion(crnn.prob, input_seq_lengths, labels, target_seq_lengths, pred_labels, true_labels)
 	global_step = tf.Variable(0)
 	optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
@@ -78,6 +79,7 @@ if __name__ == '__main__':
 					crnn.inputImgs:batchSet, 
 					crnn.isTraining:True,
 					crnn.keepProb:1.0,
+					crnn.rnnSeqLengths:trainSeqLength,
 					ctc.lossTarget:labelSet[1], 
 					ctc.targetSeqLengths:seqLengths,
 					ctc.inputSeqLengths:trainSeqLength
@@ -96,6 +98,7 @@ if __name__ == '__main__':
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
+								crnn.rnnSeqLengths:evalSeqLength,
 								ctc.inputSeqLengths:evalSeqLength
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
@@ -113,6 +116,7 @@ if __name__ == '__main__':
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
+								crnn.rnnSeqLengths:testSeqLength,
 								ctc.inputSeqLengths:testSeqLength
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)

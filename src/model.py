@@ -22,21 +22,24 @@ def maxPool2x2(x, pool_name=None):
 def maxPool2x1(x, pool_name=None):
 	return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 1, 1], padding='SAME', name=pool_name)
 
-def biLSTM(x, nInputs, nHidden, keep_prob):
+def biLSTM(x, nInputs, nHidden, keep_prob, seqLengths):
 	lstmFwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
 	lstmBwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
 	# lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	# lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
-	outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32)
-	return outputs
+	# outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32)
+	outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
+	# return outputs
+	return tf.concat(outputs, 2)
 
 class CRNN:
-	def __init__(self, inputImgs, conf, isTraining, keepProb, session=None):
+	def __init__(self, inputImgs, conf, isTraining, keepProb, rnnSeqLengths, session=None):
 		self.inputImgs = inputImgs
 		self.sess = session
 		self.config = conf
 		self.isTraining = isTraining
 		self.keepProb = keepProb
+		self.rnnSeqLengths = rnnSeqLengths
 		self.convLayers()
 		self.lstmLayers()
 		self.prob = self.biLstm2
@@ -111,7 +114,8 @@ class CRNN:
 			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
 			self.conv5= tf.nn.relu(batch_norm_out)	
 		print(self.conv5.shape)	
-		'''
+		''' 
+		# work for static bidirectional rnn
 		#transpose
 		self.transposed = tf.transpose(self.conv5, perm=[2, 0, 3, 1], name='transposed')
 		#reshape
@@ -122,6 +126,8 @@ class CRNN:
 		self.splitedtable = [tf.reshape(x, [-1, 512]) for x in self.splitedtable]
 		print(self.splitedtable[0].shape)	
 		'''
+		''' 
+		# work for static bidirectional rnn
 		#reshape
 		self.view1 = tf.squeeze(self.conv5, name='view1')
 		print(self.view1.shape)	
@@ -132,23 +138,51 @@ class CRNN:
 		#split to get a list of 'n_steps' tensors of shape [n_batches, n_inputs]
 		self.splitedtable = tf.split(self.view2, 24, 0, name='splitedtable')
 		print(self.splitedtable[0].shape)
+		'''
+		
+		# work for dynamic bidirectional rnn
+		#transpose
+		self.transposed = tf.transpose(self.conv5, perm=[2, 0, 3, 1], name='transposed')
+		#reshape
+		self.view = tf.reshape(self.transposed, [24, -1, 512], name='view')
+		print(self.view.shape)
+		
 	def lstmLayers(self):
 		#biLSTM1
 		with tf.variable_scope('biLSTM1') as scope:
-			biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb)
-			joinedtable = tf.stack(biLstm, 0)
-			joinedtable = tf.reshape(joinedtable, [-1, 512])
+			# work for static bidirectional rnn
+			# biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb)
+			# joinedtable = tf.stack(biLstm, 0)
+			# joinedtable = tf.reshape(joinedtable, [-1, 512])
+			# weights = weightVariable([256*2, 256])
+			# biases = biasVariable([256])
+			# self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+			# print(self.biLstm1.shape)
+			# self.biLstm1 = tf.split(self.biLstm1, 24, 0)
+
+			# work for dynamic bidirectional rnn
+			biLstm = biLSTM(self.view, 512, 256, self.keepProb, self.rnnSeqLengths)
+			joinedtable = tf.reshape(biLstm, [-1, 512])
 			weights = weightVariable([256*2, 256])
 			biases = biasVariable([256])
 			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+			self.biLstm1 = tf.reshape(self.biLstm1, [24, -1, 256])
 			print(self.biLstm1.shape)
-			self.biLstm1 = tf.split(self.biLstm1, 24, 0)
 
 		#biLSTM2
 		with tf.variable_scope('biLSTM2') as scope:
-			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb)
-			joinedtable = tf.stack(biLstm, 0)
-			joinedtable = tf.reshape(joinedtable, [-1, 512])
+			# work for static bidirectional rnn
+			# biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb)
+			# joinedtable = tf.stack(biLstm, 0)
+			# joinedtable = tf.reshape(joinedtable, [-1, 512])
+			# weights = weightVariable([256*2, 37])
+			# biases = biasVariable([37])
+			# self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+			# self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
+
+			# work for dynamic bidirectional rnn
+			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb, self.rnnSeqLengths)
+			joinedtable = tf.reshape(biLstm, [-1, 512])
 			weights = weightVariable([256*2, 37])
 			biases = biasVariable([37])
 			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
