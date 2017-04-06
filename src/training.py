@@ -16,14 +16,14 @@ class Conf:
 		self.evalBatchSize = 200
 		self.testBatchSize = 10
 		self.maxIteration = 2000000
-		self.displayInterval = 100
-		self.evalInterval = 1000
-		self.testInterval = 2000
+		self.displayInterval = 1
+		self.evalInterval = 10
+		self.testInterval = 20
 		self.saveInterval = 50000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
-		self.dataSet = os.path.join('..', 'data', 'Synth')
-		self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
-		# self.dataSet = os.path.join('..', 'data', 'IIIT5K')
+		# self.dataSet = os.path.join('..', 'data', 'Synth')
+		# self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
+		self.dataSet = os.path.join('..', 'data', 'IIIT5K')
 		self.maxLength = 24
 
 
@@ -92,14 +92,14 @@ if __name__ == '__main__':
 			batchSet, labelSet, seqLengths = data.nextBatch(gConfig.evalBatchSize)
 			# print(batchSet.shape, labelSet.shape)
 
-			p = sess.run(ctc.decoded, feed_dict={
+			p = sess.run(crnn.rawPred, feed_dict={
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
 								ctc.inputSeqLengths:evalSeqLength
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
-			predicted = utility.convertSparseArrayToStrs(p[0])
+			predicted = utility.simpleDecoder(p)
 			# trainAccuracy = sess.run([ctc.accuracy], feed_dict={
 			# 						ctc.pred_labels: predicted,
 			# 						ctc.true_labels: original
@@ -109,16 +109,17 @@ if __name__ == '__main__':
 		#small test
 		if step != 0 and step % gConfig.testInterval == 0:
 			batchSet, labelSet, seqLengths = data.nextBatch(gConfig.testBatchSize)
-			p = sess.run(ctc.decoded, feed_dict={
+			p = sess.run(crnn.rawPred, feed_dict={
 								crnn.inputImgs:batchSet, 
 								crnn.isTraining:False,
 								crnn.keepProb:1.0,
 								ctc.inputSeqLengths:testSeqLength
 								})
 			original = utility.convertSparseArrayToStrs(labelSet)
-			predicted = utility.convertSparseArrayToStrs(p[0])
+			predictedWithBlank = utility.simpleDecoderWithBlank(p)
+			predicted = utility.simpleDecoder(p)
 			for i in range(len(original)):
-				print("original: %s, predicted: %s" % (original[i], predicted[i]))
+				print("original: %s, predicted(no decode): %s, predicted: %s" % (original[i], predictedWithBlank[i], predicted[i]))
 		if step >= gConfig.maxIteration:
 			print("%d training has completed" % gConfig.maxIteration)
 			crnn.saveModel(gConfig.modelDir, step)

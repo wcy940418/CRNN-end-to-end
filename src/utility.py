@@ -10,6 +10,35 @@ def labelInt2Char(n):
 		c = ''
 	return c
 
+def labelInt2CharWithBlank(n):
+	if n >= 0 and n <=9:
+		c = chr(n + 48)
+	elif n >= 10 and n<= 35:
+		c = chr(n  + 97 - 10)
+	elif n == 36:
+		c = '-'
+	return c
+
+def simpleDecoderWithBlank(results):
+	labels = []
+	for i in range(len(results)):
+		label = ''
+		for j in range(len(results[i])):
+			label += labelInt2CharWithBlank(results[i][j])
+		labels.append(label)
+	return labels
+
+def simpleDecoder(p):
+	labels = simpleDecoderWithBlank(p)
+	results = []
+	for label in labels:
+		temp_s = ''
+		for i in range(len(label)):
+			if label[i] != '-' and not(i > 0 and label[i] == label[i-1]):
+				temp_s += label[i]
+		results.append(temp_s)
+	return results
+
 def convertSparseArrayToStrs(p):
 	# print(p[0].shape, p[1].shape, p[2].shape)
 	# print(p[2][0], p[2][1])

@@ -153,6 +153,10 @@ class CRNN:
 			biases = biasVariable([37])
 			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
 			self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
+		pred = tf.nn.softmax(self.biLstm2)
+		pred = tf.transpose(pred, perm=[1, 0, 2])
+		self.rawPred = tf.argmax(pred, 2)
+		print(self.rawPred.shape)
 	def loadModel(self, modelFile):
 		saver = tf.train.Saver()
 		saver.restore(self.sess, modelFile)
