@@ -21,9 +21,9 @@ class Conf:
 		self.testInterval = 20
 		self.saveInterval = 50000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
-		# self.dataSet = os.path.join('..', 'data', 'Synth')
-		# self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
-		self.dataSet = os.path.join('..', 'data', 'IIIT5K')
+		self.dataSet = os.path.join('..', 'data', 'Synth')
+		self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
+		# self.dataSet = os.path.join('..', 'data', 'IIIT5K')
 		self.maxLength = 24
 
 
@@ -58,8 +58,8 @@ if __name__ == '__main__':
 		crnn.loadModel(ckpt)
 		step = sess.run([global_step])
 
-	data = DatasetLmdb(gConfig.dataSet)
-	# data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
+	# data = DatasetLmdb(gConfig.dataSet)
+	data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
 	
 	trainAccuracy = 0
 
