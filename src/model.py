@@ -226,6 +226,6 @@ class CtcCriterion:
 	def decodeCtc(self):
 		# currently do not use greedy decoder, using naive decoder instead
 		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.inputSeqLengths)
-		# calculater the accuracy
+		# calculate the accuracy
 		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.pred_labels, self.true_labels), tf.float32))
 
