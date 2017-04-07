@@ -42,7 +42,7 @@ if __name__ == '__main__':
 	keepProb = tf.placeholder(tf.float32)
 	pred_labels = tf.placeholder(tf.string, [None])
 	true_labels = tf.placeholder(tf.string, [None])
-
+	# sequence lengths definition for dynamic rnn requirement
 	trainSeqLength = [gConfig.maxLength for i in range(gConfig.trainBatchSize)]
 	testSeqLength = [gConfig.maxLength for i in range(gConfig.testBatchSize)]
 	evalSeqLength = [gConfig.maxLength for i in range(gConfig.evalBatchSize)]
