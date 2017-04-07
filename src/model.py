@@ -26,12 +26,15 @@ def biLSTM(x, nInputs, nHidden, keep_prob, seqLengths):
 	# using standard lstm cell without peephole
 	lstmFwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
 	lstmBwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
+	lstmFwCells = tf.contrib.rnn.MultiRNNCell([lstmFwCell] * 2)
+	lstmBwCells = tf.contrib.rnn.MultiRNNCell([lstmBwCell] * 2)
 	# lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	# lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	# using static bidirectional rnn
 	# outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32)
 	# using dynamic bidirectional rnn
-	outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
+	# outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
+	outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCells, lstmBwCells, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
 	# return outputs
 	return tf.concat(outputs, 2)
 
@@ -151,6 +154,7 @@ class CRNN:
 		print(self.view.shape)
 		
 	def lstmLayers(self):
+		'''
 		#biLSTM1
 		with tf.variable_scope('biLSTM1') as scope:
 			# work for static bidirectional rnn
@@ -190,6 +194,16 @@ class CRNN:
 			biases = biasVariable([37])
 			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
 			self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
+		'''
+		with tf.variable_scope('biLSTM') as scope:
+			# work for dynamic bidirectional rnn
+			biLstm = biLSTM(self.view, 512, 256, self.keepProb, self.rnnSeqLengths)
+			joinedtable = tf.reshape(biLstm, [-1, 512])
+			weights = weightVariable([256*2, 37])
+			biases = biasVariable([37])
+			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+			self.biLstm2 = tf.reshape(self.biLstm1, [24, -1, 37])
+			print(self.biLstm2.shape)
 		pred = tf.nn.softmax(self.biLstm2)
 		pred = tf.transpose(pred, perm=[1, 0, 2])
 		self.rawPred = tf.argmax(pred, 2)
