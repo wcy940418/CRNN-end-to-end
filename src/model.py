@@ -4,13 +4,12 @@ import tensorflow as tf
 import numpy as np
 import os
 import warpctc_tensorflow
-
 def weightVariable(shape):
 	initial = tf.truncated_normal(shape, stddev=0.1, name='weights')
 	return tf.Variable(initial)
 
 def biasVariable(shape):
-	initial = tf.constant(0.1, shape=shape, name='biases')
+	initial = tf.random_normal(shape=shape, name='biases')
 	return tf.Variable(initial)
 
 def conv2d(x, W, pad='SAME'):
@@ -26,15 +25,13 @@ def biLSTM(x, nInputs, nHidden, keep_prob, seqLengths):
 	# using standard lstm cell without peephole
 	lstmFwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
 	lstmBwCell = tf.contrib.rnn.LSTMCell(nHidden, forget_bias=1.0, state_is_tuple=True)
-	lstmFwCells = tf.contrib.rnn.MultiRNNCell([lstmFwCell] * 2)
-	lstmBwCells = tf.contrib.rnn.MultiRNNCell([lstmBwCell] * 2)
 	# lstmBwCell = tf.contrib.rnn.DropoutWrapper(lstmBwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	# lstmFwCell = tf.contrib.rnn.DropoutWrapper(lstmFwCell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
 	# using static bidirectional rnn
 	# outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstmFwCell, lstmBwCell, x, dtype=tf.float32)
 	# using dynamic bidirectional rnn
-	# outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
-	outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCells, lstmBwCells, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
+	outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
+	# outputs,_ = tf.nn.bidirectional_dynamic_rnn(lstmFwCells, lstmBwCells, x, sequence_length=seqLengths, dtype=tf.float32, time_major=True)
 	# return outputs
 	return tf.concat(outputs, 2)
 
@@ -57,6 +54,7 @@ class CRNN:
 			images = np.add(images, -128.0)
 			images = np.multiply(images, 1.0/128.0)
 			self.imgs = images #[?, 32, 100, 1]
+			tf.summary.image('img', self.imgs, 1)
 		#conv1
 		with tf.variable_scope('conv1') as scope:
 			kernel = weightVariable([3, 3, 1, 64])
@@ -64,6 +62,7 @@ class CRNN:
 			biases = biasVariable([64])
 			out = tf.nn.bias_add(conv, biases)
 			self.conv1 = tf.nn.relu(out)#[?, 32, 100, 64]
+			tf.summary.histogram('conv1_out', self.conv1)
 		#maxPool1
 		self.pool1 = maxPool2x2(self.conv1, 'pool1') # [?, 16, 50, 64]
 		#conv2
@@ -73,6 +72,7 @@ class CRNN:
 			biases = biasVariable([128])
 			out = tf.nn.bias_add(conv, biases)
 			self.conv2 = tf.nn.relu(out)# [? 16, 50, 128]
+			tf.summary.histogram('conv2_out', self.conv2)
 		#maxPool2
 		self.pool2 = maxPool2x2(self.conv2, 'pool2') #[?, 8, 25, 128]
 		#conv3_1 w/batch_norm(This part is same as source code, not paper)
@@ -82,7 +82,8 @@ class CRNN:
 			biases = biasVariable([256])
 			conv_out = tf.nn.bias_add(conv, biases)
 			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
-			self.conv3_1 = tf.nn.relu(batch_norm_out)# [?, 8, 25, 256]
+			self.conv3_1 = tf.nn.relu(conv_out)# [?, 8, 25, 256]
+			tf.summary.histogram('conv3_1_out', self.conv3_1)
 		#conv3_2
 		with tf.variable_scope('conv3_2') as scope:
 			kernel = weightVariable([3, 3, 256, 256])
@@ -100,7 +101,8 @@ class CRNN:
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
 			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
-			self.conv4_1 = tf.nn.relu(batch_norm_out)#[?, 4, 25, 512]
+			self.conv4_1 = tf.nn.relu(conv_out)#[?, 4, 25, 512]
+			tf.summary.histogram('conv4_1_out', self.conv4_1)
 		#conv4_2 wo/batch_norm(This part is same as source code, not paper)
 		with tf.variable_scope('conv4_2') as scope:
 			kernel = weightVariable([3, 3, 512, 512])
@@ -118,7 +120,9 @@ class CRNN:
 			biases = biasVariable([512])
 			conv_out = tf.nn.bias_add(conv, biases)
 			batch_norm_out = tf.layers.batch_normalization(conv_out, training=self.isTraining)
-			self.conv5= tf.nn.relu(batch_norm_out) #[?, 1, 24, 512]
+			self.conv5= tf.nn.relu(conv_out) #[?, 1, 24, 512]
+			tf.summary.histogram('conv5_out', self.conv5)
+
 		print(self.conv5.shape)	
 		''' 
 		# work for static bidirectional rnn
@@ -152,9 +156,8 @@ class CRNN:
 		#reshape
 		self.view = tf.reshape(self.transposed, [24, -1, 512], name='view')
 		print(self.view.shape)
-		
+		tf.summary.histogram('view', self.view)
 	def lstmLayers(self):
-		'''
 		#biLSTM1
 		with tf.variable_scope('biLSTM1') as scope:
 			# work for static bidirectional rnn
@@ -194,19 +197,10 @@ class CRNN:
 			biases = biasVariable([37])
 			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
 			self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
-		'''
-		with tf.variable_scope('biLSTM') as scope:
-			# work for dynamic bidirectional rnn
-			biLstm = biLSTM(self.view, 512, 256, self.keepProb, self.rnnSeqLengths)
-			joinedtable = tf.reshape(biLstm, [-1, 512])
-			weights = weightVariable([256*2, 37])
-			biases = biasVariable([37])
-			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
-			self.biLstm2 = tf.reshape(self.biLstm1, [24, -1, 37])
-			print(self.biLstm2.shape)
 		pred = tf.nn.softmax(self.biLstm2)
 		pred = tf.transpose(pred, perm=[1, 0, 2])
 		self.rawPred = tf.argmax(pred, 2)
+		tf.summary.histogram('pred', self.rawPred)
 		print(self.rawPred.shape)
 	def loadModel(self, modelFile):
 		saver = tf.train.Saver()
@@ -237,6 +231,7 @@ class CtcCriterion:
 		# using baidu's warp ctc loss calculator
 		self.loss = warpctc_tensorflow.ctc(self.result, self.lossTarget, self.targetSeqLengths, self.inputSeqLengths, blank_label=36)
 		self.cost = tf.reduce_mean(self.loss)
+		tf.summary.scalar('cost', self.cost)
 	def decodeCtc(self):
 		# currently do not use greedy decoder, using naive decoder instead
 		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.inputSeqLengths)

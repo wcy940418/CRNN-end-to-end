@@ -21,10 +21,11 @@ class Conf:
 		self.testInterval = 20
 		self.saveInterval = 50000
 		self.modelDir = os.path.abspath(os.path.join('..', 'model', 'ckpt'))
-		self.dataSet = os.path.join('..', 'data', 'Synth')
-		self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
-		# self.dataSet = os.path.join('..', 'data', 'IIIT5K')
+		# self.dataSet = os.path.join('..', 'data', 'Synth')
+		# self.auxDataSet = os.path.join('..', 'data', 'aux_Synth')
+		self.dataSet = os.path.join('..', 'data', 'IIIT5K')
 		self.maxLength = 24
+		self.trainLogPath = os.path.abspath(os.path.join('..', 'model', 'train'))
 
 
 if __name__ == '__main__':
@@ -49,6 +50,8 @@ if __name__ == '__main__':
 
 	crnn = CRNN(imgs, gConfig, isTraining, keepProb, rnn_seq_lengths, sess)
 	ctc = CtcCriterion(crnn.prob, input_seq_lengths, labels, target_seq_lengths, pred_labels, true_labels)
+	merged = tf.summary.merge_all()
+	train_writer = tf.summary.FileWriter(gConfig.trainLogPath, sess.graph)
 	global_step = tf.Variable(0)
 	optimizer = tf.train.AdadeltaOptimizer(0.001).minimize(ctc.cost, global_step=global_step)
 	if ckpt is None:
@@ -59,11 +62,11 @@ if __name__ == '__main__':
 		crnn.loadModel(ckpt)
 		step = sess.run([global_step])
 
-	# data = DatasetLmdb(gConfig.dataSet)
-	data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
+	data = DatasetLmdb(gConfig.dataSet)
+	# data = SynthLmdb(gConfig.dataSet, gConfig.auxDataSet)
 	
 	trainAccuracy = 0
-
+	
 	def signal_handler(signal, frame):
 		print('You pressed Ctrl+C!')
 		crnn.saveModel(gConfig.modelDir, step)
@@ -75,7 +78,7 @@ if __name__ == '__main__':
 	while True:
 		#train
 		batchSet, labelSet, seqLengths = data.nextBatch(gConfig.trainBatchSize)
-		cost, _, step = sess.run([ctc.cost, optimizer, global_step],feed_dict={
+		cost, _, step, summary = sess.run([ctc.cost, optimizer, global_step, merged],feed_dict={
 					crnn.inputImgs:batchSet, 
 					crnn.isTraining:True,
 					crnn.keepProb:1.0,
@@ -85,6 +88,7 @@ if __name__ == '__main__':
 					ctc.inputSeqLengths:trainSeqLength
 					})
 		if step % gConfig.displayInterval == 0:
+			train_writer.add_summary(summary, step)
 			time_elapse = time.time() - t
 			t = time.time()
 			total_time = time.time() - start_time
