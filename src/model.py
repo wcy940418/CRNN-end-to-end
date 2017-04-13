@@ -10,7 +10,7 @@ def weightVariable(shape):
 	return tf.Variable(initial)
 
 def biasVariable(shape):
-	initial = tf.constant(0.1, shape=shape, name='biases')
+	initial = tf.constant(0.0, shape=shape, name='biases')
 	return tf.Variable(initial)
 
 def conv2d(x, W, pad='SAME'):
@@ -54,6 +54,7 @@ class CRNN:
 			images = np.add(images, -128.0)
 			images = np.multiply(images, 1.0/128.0)
 			self.imgs = images #[?, 32, 100, 1]
+			tf.summary.image('input image', self.imgs, 1)
 		#conv1
 		with tf.variable_scope('conv1') as scope:
 			kernel = weightVariable([3, 3, 1, 64])
@@ -61,6 +62,9 @@ class CRNN:
 			biases = biasVariable([64])
 			out = tf.nn.bias_add(conv, biases)
 			self.conv1 = tf.nn.relu(out)#[?, 32, 100, 64]
+			out_sample = self.conv1[:,:,:,:1]
+			tf.summary.image('conv1_1st sample', out_sample, 1)
+			tf.summary.histogram('conv1_weights', kernel)
 		#maxPool1
 		self.pool1 = maxPool2x2(self.conv1, 'pool1') # [?, 16, 50, 64]
 		#conv2
@@ -145,32 +149,32 @@ class CRNN:
 		
 		# work for dynamic bidirectional rnn
 		#transpose
-		self.transposed = tf.transpose(self.conv5, perm=[2, 0, 3, 1], name='transposed')
+		transposed = tf.transpose(self.conv5, perm=[2, 0, 3, 1], name='transposed')
 		#reshape
-		self.view = tf.reshape(self.transposed, [24, -1, 512], name='view')
+		self.view = tf.reshape(transposed, [24, -1, 512], name='view')
 		print(self.view.shape)
 		
 	def lstmLayers(self):
 		#biLSTM1
-		with tf.variable_scope('biLSTM1') as scope:
-			# work for static bidirectional rnn
-			# biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb)
-			# joinedtable = tf.stack(biLstm, 0)
-			# joinedtable = tf.reshape(joinedtable, [-1, 512])
-			# weights = weightVariable([256*2, 256])
-			# biases = biasVariable([256])
-			# self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
-			# print(self.biLstm1.shape)
-			# self.biLstm1 = tf.split(self.biLstm1, 24, 0)
+		# with tf.variable_scope('biLSTM1') as scope:
+		# 	# work for static bidirectional rnn
+		# 	# biLstm = biLSTM(self.splitedtable, 512, 256, self.keepProb)
+		# 	# joinedtable = tf.stack(biLstm, 0)
+		# 	# joinedtable = tf.reshape(joinedtable, [-1, 512])
+		# 	# weights = weightVariable([256*2, 256])
+		# 	# biases = biasVariable([256])
+		# 	# self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+		# 	# print(self.biLstm1.shape)
+		# 	# self.biLstm1 = tf.split(self.biLstm1, 24, 0)
 
-			# work for dynamic bidirectional rnn
-			biLstm = biLSTM(self.view, 512, 256, self.keepProb, self.rnnSeqLengths)
-			joinedtable = tf.reshape(biLstm, [-1, 512])
-			weights = weightVariable([256*2, 256])
-			biases = biasVariable([256])
-			self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
-			self.biLstm1 = tf.reshape(self.biLstm1, [24, -1, 256])
-			print(self.biLstm1.shape)
+		# 	# work for dynamic bidirectional rnn
+		# 	biLstm = biLSTM(self.view, 512, 256, self.keepProb, self.rnnSeqLengths)
+		# 	joinedtable = tf.reshape(biLstm, [-1, 512])
+		# 	weights = weightVariable([256*2, 256])
+		# 	biases = biasVariable([256])
+		# 	self.biLstm1 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+		# 	self.biLstm1 = tf.reshape(self.biLstm1, [24, -1, 256])
+		# 	print(self.biLstm1.shape)
 
 		#biLSTM2
 		with tf.variable_scope('biLSTM2') as scope:
@@ -184,14 +188,13 @@ class CRNN:
 			# self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
 
 			# work for dynamic bidirectional rnn
-			biLstm = biLSTM(self.biLstm1, 256, 256, self.keepProb, self.rnnSeqLengths)
-			joinedtable = tf.reshape(biLstm, [-1, 512])
+			lstmout = biLSTM(self.view, 512, 256, self.keepProb, self.rnnSeqLengths)
+			joinedtable = tf.reshape(lstmout, [-1, 512])
 			weights = weightVariable([256*2, 37])
 			biases = biasVariable([37])
-			self.biLstm2 = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
-			self.biLstm2 = tf.reshape(self.biLstm2, [24, -1, 37])
-		pred = tf.nn.softmax(self.biLstm2)
-		pred = tf.transpose(pred, perm=[1, 0, 2])
+			calout = tf.nn.bias_add(tf.matmul(joinedtable, weights), biases)
+			self.biLstm2 = tf.reshape(calout, [24, -1, 37])
+		pred = tf.transpose(tf.nn.softmax(self.biLstm2), perm=[1, 0, 2])
 		self.rawPred = tf.argmax(pred, 2)
 		print(self.rawPred.shape)
 	def loadModel(self, modelFile):
