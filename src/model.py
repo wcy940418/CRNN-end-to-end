@@ -219,16 +219,10 @@ class CtcCriterion:
 		self.pred_labels = pred_labels
 		self.true_labels = true_labels
 		self.createCtcCriterion()
-		self.decodeCtc()
 	def createCtcCriterion(self):
 		# using built-in ctc loss calculator
 		# self.loss = tf.nn.ctc_loss(self.target, self.result, self.lossSeqLengths)
 		# using baidu's warp ctc loss calculator
 		self.loss = warpctc_tensorflow.ctc(self.result, self.lossTarget, self.targetSeqLengths, self.inputSeqLengths, blank_label=36)
 		self.cost = tf.reduce_mean(self.loss)
-	def decodeCtc(self):
-		# currently do not use greedy decoder, using naive decoder instead
-		self.decoded, self.log_prob = tf.nn.ctc_greedy_decoder(self.result, self.inputSeqLengths)
-		# calculate the accuracy
-		self.accuracy = tf.reduce_mean(tf.cast(tf.equal(self.pred_labels, self.true_labels), tf.float32))
 
