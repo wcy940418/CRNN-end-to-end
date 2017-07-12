@@ -8,6 +8,10 @@ A CRNN python implement based on TensorFlow</br>
 * OpenCV2
 * Baidu's WarpCTC
 
+## Important
+
+* Currently this can not work at all, and the reimplementation has terminated. Sorry for inconvenience.
+
 Code from Chaoyue Wang</br>
 
 03/24/2017 Update:</br>
